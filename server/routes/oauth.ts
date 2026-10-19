@@ -20,6 +20,8 @@ import { createSessionToken, AuthenticatedUser } from '../middleware/auth.js';
 import { db } from '../db/database.js';
 import { encryptToken } from '../security/tokenEncryption.js';
 import { AuditLogger } from '../security/auditLogger.js';
+import { integrationManager } from '../integrations/integration.manager.js';
+import { CaptureService } from '../services/captureService.js';
 
 const router = Router();
 
@@ -209,6 +211,24 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     });
 
     issueSessionAndRedirect(res, user);
+
+    // Initial background sync: pull actionable emails from user's Gmail
+    setTimeout(async () => {
+      try {
+        const messages = await integrationManager.fetchAllMessages(user.id);
+        for (const msg of messages) {
+          await CaptureService.processCapture(user.id, {
+            content: msg.content,
+            source: msg.provider,
+            url: msg.sourceUrl,
+            sender: msg.senderName ? `${msg.senderName} <${msg.sender}>` : msg.sender,
+            subject: msg.subject
+          });
+        }
+      } catch (syncErr) {
+        console.warn('[OAuth/Google] Initial Gmail sync warning:', syncErr);
+      }
+    }, 300);
   } catch (err: any) {
     console.error('[OAuth/Google] Callback error:', err);
     res.redirect('/login.html?error=server_error');

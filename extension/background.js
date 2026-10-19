@@ -3,7 +3,7 @@
 async function getServerBaseUrl() {
   return new Promise((resolve) => {
     chrome.storage.sync.get(['serverUrl'], (data) => {
-      const origin = (data.serverUrl || 'http://localhost:3000').replace(/\/+$/, '');
+      const origin = (data.serverUrl || 'https://work-radar-4hb0.onrender.com').replace(/\/+$/, '');
       resolve(origin);
     });
   });
@@ -41,7 +41,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           source: 'chrome',
           url: pageUrl,
           subject: pageTitle,
-          sender: `Web Selection (${new URL(pageUrl || 'http://localhost').hostname})`
+          sender: `Web Selection (${new URL(pageUrl || 'https://work-radar-4hb0.onrender.com').hostname})`
         })
       });
 

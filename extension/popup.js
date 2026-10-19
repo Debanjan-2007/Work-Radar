@@ -3,7 +3,7 @@
 async function getServerBaseUrl() {
   return new Promise((resolve) => {
     chrome.storage.sync.get(['serverUrl'], (data) => {
-      const origin = (data.serverUrl || 'http://localhost:3000').replace(/\/+$/, '');
+      const origin = (data.serverUrl || 'https://work-radar-4hb0.onrender.com').replace(/\/+$/, '');
       resolve(origin);
     });
   });

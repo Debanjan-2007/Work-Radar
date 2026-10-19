@@ -5,13 +5,12 @@ import path from 'path';
 import { config } from './config.js';
 import { db } from './db/database.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
-import { requireAuth } from './middleware/auth.js';
 import { enforceUserScoping } from './middleware/authorization.js';
 import { csrfProtection } from './middleware/csrf.js';
 import { createRateLimiter } from './middleware/rateLimiter.js';
 import { SecretsManager } from './security/secrets.js';
 import { ReminderScheduler } from './reminders/reminderScheduler.js';
-import { DEMO_USER } from './middleware/auth.js';
+import { requireAuth, verifySessionToken, DEMO_USER } from './middleware/auth.js';
 
 // Route handlers
 import authRoutes from './routes/auth.js';
@@ -68,19 +67,29 @@ const generalLimiter = createRateLimiter({
 });
 app.use('/api/', generalLimiter);
 
-// 6. Public Static Frontend Assets
+// 6. Enforce Authentication Guard on root / dashboard
+// If visitor has no valid session, redirect immediately to the login page
+app.get(['/', '/index.html'], (req, res, next) => {
+  const token = req.cookies?.['work_radar_session'];
+  if (!token || !verifySessionToken(token)) {
+    return res.redirect('/login.html');
+  }
+  next();
+});
+
+// 7. Public Static Frontend Assets
 app.use(express.static(path.resolve(process.cwd(), 'public')));
 
-// 7. Unauthenticated Public Routes
+// 8. Unauthenticated Public Routes
 app.use('/api/v1/auth', authRoutes);
 // OAuth 2.0 callback routes — must be public (no session yet at callback time)
 app.use('/api/v1/oauth', oauthRoutes);
 
-// 8. Enforce Authoritative Security Pipeline on all /api/v1 endpoints:
+// 9. Enforce Authoritative Security Pipeline on all /api/v1 endpoints:
 // Authentication -> Authorization -> CSRF Check -> Business Logic
 app.use('/api/v1', requireAuth, enforceUserScoping, csrfProtection);
 
-// 9. API Routes Mount
+// 10. API Routes Mount
 app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/capture', captureRoutes);
 app.use('/api/v1/integrations', integrationRoutes);
@@ -88,9 +97,13 @@ app.use('/api/v1/reminders', reminderRoutes);
 app.use('/api/v1/voice', voiceRoutes);
 app.use('/api/v1/events', eventRoutes);
 
-// 10. Fallback SPA route
+// 11. Fallback SPA route
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
+  const token = req.cookies?.['work_radar_session'];
+  if (!token || !verifySessionToken(token)) {
+    return res.redirect('/login.html');
+  }
   res.sendFile(path.resolve(process.cwd(), 'public', 'index.html'));
 });
 

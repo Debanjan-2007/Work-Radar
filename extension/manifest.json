@@ -21,13 +21,17 @@
     "storage"
   ],
   "host_permissions": [
-    "http://localhost:3000/*",
-    "https://*/*"
+    "https://work-radar-4hb0.onrender.com",
+    "http://localhost:3000"
   ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

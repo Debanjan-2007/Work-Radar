@@ -464,6 +464,13 @@
         <span class="oauth-btn-arrow">›</span>
       </a>
 
+      <!-- Demo Account Option -->
+      <button type="button" class="oauth-btn demo" id="btn-demo" style="background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.12); margin-top: 6px; cursor: pointer;">
+        <span class="oauth-icon" style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center;">⚡</span>
+        <span class="oauth-btn-text" style="color: #94a3b8;">Explore with Demo Account</span>
+        <span class="oauth-btn-arrow" style="color: #64748b;">›</span>
+      </button>
+
     </div>
 
     <!-- What permissions are requested -->
@@ -533,6 +540,23 @@
         }
       } catch (_) { /* not logged in, stay on login page */ }
     })();
+
+    // Handle Explore with Demo Account button
+    document.getElementById('btn-demo')?.addEventListener('click', async () => {
+      try {
+        const btn = document.getElementById('btn-demo');
+        if (btn) btn.style.opacity = '0.6';
+        const res = await fetch('/api/v1/auth/demo', {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+        if (res.ok) {
+          window.location.replace('/');
+        }
+      } catch (err) {
+        console.error('Demo login error:', err);
+      }
+    });
   </script>
 </body>
 </html>

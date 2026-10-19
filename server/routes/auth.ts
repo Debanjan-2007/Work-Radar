@@ -64,12 +64,38 @@ router.get('/me', (req, res) => {
     if (user) return res.json({ user });
   }
 
-  // In development: return demo user so the dashboard loads without OAuth setup
-  if (config.nodeEnv === 'development') {
-    return res.json({ user: DEMO_USER });
-  }
-
+  // Without a valid session cookie, always return 401 Unauthorized so login is shown
   return res.status(401).json({ error: 'Unauthorized', message: 'No active session' });
+});
+
+// Explicit demo login for users who want to try the demo data
+router.post('/demo', (req, res) => {
+  const sessionToken = createSessionToken(DEMO_USER);
+  const isProd = config.nodeEnv === 'production';
+
+  res.cookie('work_radar_session', sessionToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  res.cookie('csrf_token', csrfToken, {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
+  AuditLogger.log({
+    eventType: 'AUTH_LOGIN',
+    userId: DEMO_USER.id,
+    ipAddress: req.ip,
+    details: { provider: 'demo' }
+  });
+
+  res.json({ success: true, user: DEMO_USER });
 });
 
 export default router;
