@@ -1,0 +1,38 @@
+{
+  "name": "work-radar",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AI-Powered Personal Work Management System",
+  "main": "dist/server/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server/server.js",
+    "dev": "tsx watch server/server.ts",
+    "test": "node --test tests/**/*.test.js"
+  },
+  "keywords": [
+    "work-management",
+    "priority-queue",
+    "ai",
+    "productivity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "helmet": "^8.0.0",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "cookie-parser": "^1.4.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

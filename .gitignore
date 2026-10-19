@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Environment Variables & Secrets (NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build Artifacts
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE & OS Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

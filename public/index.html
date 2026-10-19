@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Work Radar — AI-Powered Personal Work Management System</title>
+  <meta name="description" content="A live radar for everything that needs your attention. Automatically captures, analyzes, and continuously prioritizes scattered work into one intelligent queue.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/components.css">
+</head>
+<body class="radar-app">
+  <!-- Background Glow & Grid -->
+  <div class="radar-bg-grid" aria-hidden="true"></div>
+  <div class="radar-ambient-glow" aria-hidden="true"></div>
+
+  <!-- Header & Navigation -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-group">
+        <div class="radar-brand-icon">
+          <svg viewBox="0 0 48 48" class="radar-svg" width="36" height="36">
+            <circle cx="24" cy="24" r="20" class="radar-ring r1" />
+            <circle cx="24" cy="24" r="14" class="radar-ring r2" />
+            <circle cx="24" cy="24" r="8" class="radar-ring r3" />
+            <circle cx="24" cy="24" r="3" class="radar-center" />
+            <line x1="24" y1="24" x2="42" y2="12" class="radar-sweep" />
+          </svg>
+          <span class="radar-pulse"></span>
+        </div>
+        <div class="brand-titles">
+          <h1 class="brand-name">WORK RADAR</h1>
+          <span class="brand-tagline">Personal Work Operating System</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Voice Assistant Button -->
+        <button id="btn-voice-assistant" class="btn-voice" title="Ask Voice Assistant ('What should I do next?')">
+          <span class="voice-mic-icon">🎙️</span>
+          <span class="voice-text">Voice Radar</span>
+          <span class="voice-wave" id="voice-wave"></span>
+        </button>
+
+        <!-- Notification / Reminders Bell -->
+        <button id="btn-notifications" class="btn-icon" title="View Active Reminders">
+          <span class="bell-icon">🔔</span>
+          <span id="badge-reminder-count" class="badge-count hidden">0</span>
+        </button>
+
+        <!-- Integrations Hub Button -->
+        <button id="btn-open-integrations" class="btn-secondary">
+          <span class="btn-icon-prefix">🔌</span>
+          <span>Integrations</span>
+        </button>
+
+        <!-- Recalculate Priority Button -->
+        <button id="btn-recalculate-all" class="btn-secondary" title="Recalculate all priorities dynamically">
+          <span class="btn-icon-prefix">⚡</span>
+          <span>Recalculate</span>
+        </button>
+
+        <!-- Quick Capture Button -->
+        <button id="btn-open-capture" class="btn-primary">
+          <span class="btn-icon-prefix">➕</span>
+          <span>Capture Work</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="dashboard-main">
+    <div class="dashboard-container">
+
+      <!-- SECTION: "DO THIS NOW" (Hero Feature) -->
+      <section id="do-this-now-section" class="hero-section" aria-label="Do This Now Recommendation">
+        <div class="section-label">
+          <span class="radar-dot"></span>
+          <span>DO THIS NOW — HIGHEST PRIORITY OBLIGATION</span>
+        </div>
+
+        <div id="do-this-now-card" class="do-this-now-card glass-panel">
+          <div class="hero-card-inner">
+            <div class="hero-card-left">
+              <div class="hero-badges">
+                <span id="dtn-tier-badge" class="tier-badge tier-high">HIGH PRIORITY</span>
+                <span id="dtn-source-badge" class="source-badge source-gmail">
+                  <span class="source-icon">✉️</span> Gmail
+                </span>
+                <span id="dtn-deadline-badge" class="deadline-badge">Due: Today</span>
+                <span id="dtn-time-estimate" class="estimate-badge">⏱️ ~40 min</span>
+              </div>
+
+              <h2 id="dtn-task-title" class="hero-task-title">Submit Project Report</h2>
+              <p id="dtn-task-desc" class="hero-task-desc">Prepare and submit final milestone deliverables report to client VP before end of day.</p>
+
+              <div class="hero-reason-box">
+                <span class="reason-icon">💡</span>
+                <span id="dtn-reason-text" class="reason-text">"This task is due today and has high importance."</span>
+              </div>
+            </div>
+
+            <div class="hero-card-right">
+              <div class="priority-score-display">
+                <div class="score-circle">
+                  <svg viewBox="0 0 100 100" class="score-gauge-svg">
+                    <circle cx="50" cy="50" r="42" class="gauge-bg"></circle>
+                    <circle cx="50" cy="50" r="42" id="dtn-gauge-bar" class="gauge-fill" stroke-dasharray="264" stroke-dashoffset="60"></circle>
+                  </svg>
+                  <div class="score-number-group">
+                    <span id="dtn-score-number" class="score-val">96</span>
+                    <span class="score-max">/ 125</span>
+                  </div>
+                </div>
+                <span class="score-caption">Priority Score</span>
+              </div>
+
+              <div class="hero-actions">
+                <button id="btn-start-dtn" class="btn-hero-action btn-start-work">
+                  <span>START WORK</span>
+                  <span class="arrow-icon">➔</span>
+                </button>
+                <div class="hero-secondary-actions">
+                  <button id="btn-complete-dtn" class="btn-subtle" title="Mark Completed">✓ Complete</button>
+                  <button id="btn-snooze-dtn" class="btn-subtle" title="Snooze Task">⏰ Snooze</button>
+                  <button id="btn-source-dtn" class="btn-subtle" title="View Source Context">🔍 Context</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: WORK STATUS RIBBON (Section 11) -->
+      <section class="status-ribbon-section" aria-label="Work Status Summary">
+        <div class="status-ribbon-grid">
+          <div class="status-pill active" data-filter="all">
+            <span class="pill-label">REMAINING</span>
+            <span id="stat-remaining" class="pill-value">7</span>
+          </div>
+          <div class="status-pill" data-filter="due-today">
+            <span class="pill-label">DUE TODAY</span>
+            <span id="stat-due-today" class="pill-value text-amber">1</span>
+          </div>
+          <div class="status-pill" data-filter="overdue">
+            <span class="pill-label">OVERDUE</span>
+            <span id="stat-overdue" class="pill-value text-red">0</span>
+          </div>
+          <div class="status-pill" data-filter="in-progress">
+            <span class="pill-label">IN PROGRESS</span>
+            <span id="stat-in-progress" class="pill-value text-cyan">0</span>
+          </div>
+          <div class="status-pill" data-filter="waiting">
+            <span class="pill-label">WAITING</span>
+            <span id="stat-waiting" class="pill-value text-muted">0</span>
+          </div>
+          <div class="status-pill" data-filter="completed">
+            <span class="pill-label">COMPLETED TODAY</span>
+            <span id="stat-completed" class="pill-value text-emerald">1</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION: LIVE PRIORITY QUEUE -->
+      <section class="queue-section" aria-label="Live Priority Queue">
+        <div class="queue-header">
+          <div class="queue-title-group">
+            <h3 class="queue-title">Live Priority Queue</h3>
+            <span id="queue-task-count" class="queue-subtitle">Active Work Orders</span>
+          </div>
+
+          <!-- Controls: Filters & Source Filter -->
+          <div class="queue-controls">
+            <div class="source-filter-group">
+              <button class="filter-chip active" data-source="all">All Sources</button>
+              <button class="filter-chip" data-source="gmail">✉️ Gmail</button>
+              <button class="filter-chip" data-source="github">🐙 GitHub</button>
+              <button class="filter-chip" data-source="outlook">📬 Outlook</button>
+              <button class="filter-chip" data-source="teams">💬 Teams</button>
+              <button class="filter-chip" data-source="chrome">🌐 Browser</button>
+            </div>
+            <div class="search-box">
+              <input type="text" id="input-search-tasks" placeholder="Search tasks..." aria-label="Search tasks">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tiered Queue Groups -->
+        <div class="queue-tiers-container">
+          <!-- Critical & High Priority Tier -->
+          <div class="tier-group" id="tier-high-group">
+            <div class="tier-header">
+              <span class="tier-dot tier-dot-high"></span>
+              <h4 class="tier-name">HIGH & CRITICAL PRIORITY (Score 80+)</h4>
+              <span id="count-tier-high" class="tier-count">2</span>
+            </div>
+            <div id="list-tier-high" class="task-card-list"></div>
+          </div>
+
+          <!-- Medium / Upcoming Tier -->
+          <div class="tier-group" id="tier-med-group">
+            <div class="tier-header">
+              <span class="tier-dot tier-dot-med"></span>
+              <h4 class="tier-name">UPCOMING & MEDIUM PRIORITY (Score 40–79)</h4>
+              <span id="count-tier-med" class="tier-count">2</span>
+            </div>
+            <div id="list-tier-med" class="task-card-list"></div>
+          </div>
+
+          <!-- Low Priority Tier -->
+          <div class="tier-group" id="tier-low-group">
+            <div class="tier-header">
+              <span class="tier-dot tier-dot-low"></span>
+              <h4 class="tier-name">LOW PRIORITY & BACKLOG (Score 0–39)</h4>
+              <span id="count-tier-low" class="tier-count">0</span>
+            </div>
+            <div id="list-tier-low" class="task-card-list"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- MODAL: QUICK WORK CAPTURE (AI-Powered) -->
+  <div id="modal-capture" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="capture-modal-title">
+    <div class="modal-dialog glass-panel">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">⚡</span>
+          <h3 id="capture-modal-title">Work Intelligence Capture</h3>
+        </div>
+        <button id="btn-close-capture" class="btn-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-desc">
+          Paste any unstructured message, email, meeting notes, or browser selection. Work Radar automatically extracts the action, detects deadlines, checks for duplicates, and calculates priority.
+        </p>
+
+        <form id="form-capture">
+          <div class="form-group">
+            <label for="capture-content">Unstructured Content or Text</label>
+            <textarea id="capture-content" rows="4" placeholder="e.g. 'Hey Alex, don't forget to submit the finalized presentation slides before 7 PM today.'" required></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="capture-source">Source Platform</label>
+              <select id="capture-source">
+                <option value="chrome">🌐 Browser / Chrome Extension</option>
+                <option value="manual">✍️ Manual Entry</option>
+                <option value="gmail">✉️ Gmail</option>
+                <option value="github">🐙 GitHub Issue</option>
+                <option value="outlook">📬 Outlook</option>
+                <option value="teams">💬 Teams</option>
+              </select>
+            </div>
+            <div class="form-group flex-2">
+              <label for="capture-url">Source URL (Optional)</label>
+              <input type="url" id="capture-url" placeholder="https://...">
+            </div>
+          </div>
+
+          <!-- AI Live Extraction Preview Box -->
+          <div id="ai-preview-box" class="ai-preview-box hidden">
+            <div class="ai-preview-header">
+              <span class="sparkle-icon">✨</span>
+              <span>AI Extraction & Analysis</span>
+            </div>
+            <div class="ai-preview-content">
+              <div class="preview-row"><strong>Title:</strong> <span id="prev-title"></span></div>
+              <div class="preview-row"><strong>Deadline:</strong> <span id="prev-deadline"></span></div>
+              <div class="preview-row"><strong>Urgency:</strong> <span id="prev-urgency"></span> | <strong>Importance:</strong> <span id="prev-importance"></span></div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="btn-cancel-capture" class="btn-secondary">Cancel</button>
+            <button type="submit" id="btn-submit-capture" class="btn-primary">
+              <span id="capture-submit-spinner" class="spinner hidden"></span>
+              <span>Analyze & Add to Queue</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DUPLICATE ARBITRATION (PRD Section 24) -->
+  <div id="modal-duplicate" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-dialog glass-panel border-amber">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon text-amber">⚠️</span>
+          <h3>Possible Duplicate Work Detected</h3>
+        </div>
+        <button id="btn-close-dup" class="btn-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-desc" id="dup-reason-text">
+          A matching task already exists in your Work Radar queue. We never auto-merge silently so no obligations are dropped.
+        </p>
+
+        <div class="dup-comparison-grid">
+          <div class="dup-card existing">
+            <span class="dup-tag">EXISTING OPEN TASK</span>
+            <h4 id="dup-existing-title">Submit Project Report</h4>
+            <p id="dup-existing-meta" class="text-muted">Gmail • Due Today • Priority 96</p>
+          </div>
+          <div class="dup-card candidate">
+            <span class="dup-tag text-cyan">INCOMING CAPTURE</span>
+            <h4 id="dup-candidate-title">Submit Project Report</h4>
+            <p id="dup-candidate-meta" class="text-muted">Chrome • Due Today</p>
+          </div>
+        </div>
+
+        <div class="dup-actions">
+          <button id="btn-dup-merge" class="btn-primary">Merge Context & Update</button>
+          <button id="btn-dup-separate" class="btn-secondary">Keep Both as Separate Tasks</button>
+          <button id="btn-dup-ignore" class="btn-subtle">Discard Incoming</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWER: SOURCE CONTEXT VIEWER (PRD Section 25) -->
+  <aside id="drawer-source" class="context-drawer hidden" aria-label="Original Source Context">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <span id="drawer-source-icon" class="source-icon">✉️</span>
+        <h3>Original Source Context</h3>
+      </div>
+      <button id="btn-close-drawer" class="btn-close">&times;</button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="drawer-meta-panel">
+        <div class="meta-item">
+          <span class="meta-label">PROVIDER:</span>
+          <span id="drawer-provider" class="meta-val">Gmail</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">SENDER:</span>
+          <span id="drawer-sender" class="meta-val">sarah.connor@clientcorp.com</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">RECEIVED:</span>
+          <span id="drawer-date" class="meta-val">Today, 1:45 PM</span>
+        </div>
+        <div class="meta-item" id="drawer-url-container">
+          <span class="meta-label">LINK:</span>
+          <a id="drawer-link" href="#" target="_blank" rel="noopener noreferrer" class="link-external">Open in Gmail ↗</a>
+        </div>
+      </div>
+
+      <div class="drawer-content-box">
+        <span class="content-box-label">Raw Captured Message Content:</span>
+        <pre id="drawer-raw-text" class="raw-snippet-text"></pre>
+      </div>
+
+      <div class="drawer-priority-breakdown">
+        <h4>Priority Score Composition</h4>
+        <div class="score-breakdown-grid" id="drawer-score-breakdown"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MODAL: INTEGRATIONS MANAGER -->
+  <div id="modal-integrations" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-dialog glass-panel">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">🔌</span>
+          <h3>Connected Work Sources</h3>
+        </div>
+        <button id="btn-close-integrations" class="btn-close">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-desc">
+          Work Radar actively listens to your digital tools with narrow, read-only permissions and client-side encryption.
+        </p>
+
+        <div class="integrations-list" id="integrations-list-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWER: NOTIFICATIONS & REMINDERS (PRD Section 26) -->
+  <aside id="drawer-notifications" class="context-drawer right-drawer hidden" aria-label="Reminders Center">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <span>🔔</span>
+        <h3>Radar Reminders & Alerts</h3>
+      </div>
+      <button id="btn-close-notifications" class="btn-close">&times;</button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="quiet-hours-banner">
+        <span>🌙 Quiet Hours: 10:00 PM – 8:00 AM</span>
+      </div>
+      <div id="notifications-list" class="notifications-list"></div>
+    </div>
+  </aside>
+
+  <!-- VOICE SPEECH MODAL -->
+  <div id="modal-voice" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-dialog glass-panel voice-modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">🎙️</span>
+          <h3>Work Radar Voice Assistant</h3>
+        </div>
+        <button id="btn-close-voice" class="btn-close">&times;</button>
+      </div>
+
+      <div class="modal-body text-center">
+        <div class="voice-orb" id="voice-orb">
+          <div class="orb-ring ring-1"></div>
+          <div class="orb-ring ring-2"></div>
+          <div class="orb-core"></div>
+        </div>
+
+        <p id="voice-status-text" class="voice-status">Listening... Speak now.</p>
+        <p id="voice-transcript-text" class="voice-transcript">"What should I do next?"</p>
+        <div id="voice-response-box" class="voice-response-box hidden">
+          <p id="voice-response-text"></p>
+        </div>
+
+        <div class="voice-quick-prompts">
+          <button class="prompt-pill" data-voice-prompt="What should I do next?">"What should I do next?"</button>
+          <button class="prompt-pill" data-voice-prompt="What work is pending?">"What work is pending?"</button>
+          <button class="prompt-pill" data-voice-prompt="Remind me to finish documentation today">"Add task..."</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts — auth.js MUST be first so the auth guard runs before anything else -->
+  <script src="/js/auth.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/voice.js"></script>
+  <script src="/js/reminders.js"></script>
+  <script src="/js/modals.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

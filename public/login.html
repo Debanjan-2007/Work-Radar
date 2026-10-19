@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Work Radar</title>
+  <meta name="description" content="Sign in to Work Radar — Your AI-powered personal work management system.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ─── Design Tokens ───────────────────────────────────── */
+    :root {
+      --bg-base:         #07090e;
+      --bg-subtle:       #0b0f19;
+      --bg-surface:      rgba(16, 23, 38, 0.70);
+      --border-subtle:   rgba(255,255,255,0.07);
+      --border-focus:    rgba(6,182,212,0.50);
+      --primary:         #06b6d4;
+      --primary-glow:    rgba(6,182,212,0.35);
+      --emerald:         #10b981;
+      --emerald-glow:    rgba(16,185,129,0.30);
+      --amber:           #f59e0b;
+      --red:             #ef4444;
+      --text-primary:    #f8fafc;
+      --text-secondary:  #94a3b8;
+      --text-muted:      #64748b;
+      --font-sans:       'Inter', -apple-system, sans-serif;
+      --font-display:    'Outfit', -apple-system, sans-serif;
+      --font-mono:       'JetBrains Mono', monospace;
+      --radius-md:       12px;
+      --radius-lg:       18px;
+      --transition:      0.22s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg-base);
+      font-family: var(--font-sans);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ─── Animated Background ─────────────────────────────── */
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(6,182,212,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(6,182,212,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    .bg-orb {
+      position: fixed; z-index: 0; pointer-events: none;
+      border-radius: 50%; filter: blur(80px); opacity: 0.18;
+    }
+    .bg-orb-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, #06b6d4, transparent 70%);
+      top: -180px; left: -180px;
+      animation: orbFloat 12s ease-in-out infinite alternate;
+    }
+    .bg-orb-2 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, #10b981, transparent 70%);
+      bottom: -160px; right: -160px;
+      animation: orbFloat 15s ease-in-out infinite alternate-reverse;
+    }
+    .bg-orb-3 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, #a855f7, transparent 70%);
+      top: 50%; right: 15%;
+      transform: translateY(-50%);
+      animation: orbFloat 18s ease-in-out infinite alternate;
+    }
+
+    @keyframes orbFloat {
+      from { transform: translate(0,0) scale(1); }
+      to   { transform: translate(30px, -20px) scale(1.08); }
+    }
+
+    /* ─── Radar sweep animation ───────────────────────────── */
+    @keyframes radarSweep {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes radarPulse {
+      0%, 100% { opacity: 0.5; r: 3; }
+      50%       { opacity: 1;   r: 4; }
+    }
+    @keyframes ringPulse {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 0.6; }
+    }
+
+    /* ─── Card ────────────────────────────────────────────── */
+    .login-card {
+      position: relative; z-index: 10;
+      width: min(440px, 94vw);
+      background: rgba(13, 19, 33, 0.82);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      padding: 48px 40px 44px;
+      box-shadow:
+        0 0 0 1px rgba(6,182,212,0.06),
+        0 32px 80px rgba(0,0,0,0.6),
+        0 0 60px rgba(6,182,212,0.05);
+      animation: cardIn 0.6s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(28px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+
+    /* ─── Logo / Brand ────────────────────────────────────── */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+
+    .radar-icon {
+      position: relative;
+      width: 52px; height: 52px;
+      flex-shrink: 0;
+    }
+
+    .radar-svg {
+      width: 100%; height: 100%;
+      overflow: visible;
+    }
+
+    .radar-ring { fill: none; stroke-width: 1.5; }
+    .r1 { stroke: rgba(6,182,212,0.22); animation: ringPulse 3s ease-in-out infinite; }
+    .r2 { stroke: rgba(6,182,212,0.35); animation: ringPulse 3s ease-in-out infinite 0.5s; }
+    .r3 { stroke: rgba(6,182,212,0.55); animation: ringPulse 3s ease-in-out infinite 1s; }
+    .radar-center { fill: #06b6d4; animation: radarPulse 2s ease-in-out infinite; }
+
+    .radar-sweep-group {
+      transform-origin: 24px 24px;
+      animation: radarSweep 3s linear infinite;
+    }
+    .radar-sweep-line {
+      stroke: #06b6d4; stroke-width: 1.5;
+      stroke-linecap: round;
+      opacity: 0.8;
+    }
+    .radar-sweep-arc {
+      fill: none;
+      stroke: url(#sweepGradient);
+      stroke-width: 14;
+      stroke-dasharray: 18 200;
+      opacity: 0.25;
+    }
+
+    .brand-text { display: flex; flex-direction: column; }
+    .brand-name {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .brand-tagline {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--primary);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ─── Heading ─────────────────────────────────────────── */
+    .login-heading {
+      font-family: var(--font-display);
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+      line-height: 1.2;
+    }
+
+    .login-subheading {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    /* ─── OAuth Buttons ───────────────────────────────────── */
+    .oauth-buttons { display: flex; flex-direction: column; gap: 12px; }
+
+    .oauth-btn {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 0.93rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition:
+        background var(--transition),
+        border-color var(--transition),
+        transform var(--transition),
+        box-shadow var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .oauth-btn::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.04) 100%);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+
+    .oauth-btn:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.07);
+    }
+
+    .oauth-btn:hover::before { opacity: 1; }
+    .oauth-btn:active { transform: translateY(0); }
+
+    /* Per-provider accent colors */
+    .oauth-btn.google:hover  { border-color: rgba(66,133,244,0.45); box-shadow: 0 4px 24px rgba(66,133,244,0.12); }
+    .oauth-btn.github:hover  { border-color: rgba(255,255,255,0.30); box-shadow: 0 4px 24px rgba(255,255,255,0.06); }
+    .oauth-btn.microsoft:hover { border-color: rgba(0,120,212,0.45); box-shadow: 0 4px 24px rgba(0,120,212,0.12); }
+
+    .oauth-icon {
+      width: 22px; height: 22px;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .oauth-icon svg { width: 22px; height: 22px; }
+
+    .oauth-btn-text { flex: 1; text-align: left; }
+    .oauth-btn-arrow {
+      font-size: 1rem;
+      color: var(--text-muted);
+      transition: transform var(--transition), color var(--transition);
+    }
+    .oauth-btn:hover .oauth-btn-arrow {
+      transform: translateX(3px);
+      color: var(--text-secondary);
+    }
+
+    /* ─── Divider ─────────────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.07);
+    }
+
+    /* ─── Features list ──────────────────────────────────── */
+    .features {
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .feature-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+      flex-shrink: 0;
+      box-shadow: 0 0 6px var(--primary-glow);
+    }
+
+    /* ─── Error / Info Banner ─────────────────────────────── */
+    .auth-banner {
+      display: none;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      font-weight: 500;
+      border: 1px solid;
+    }
+    .auth-banner.error {
+      background: rgba(239,68,68,0.08);
+      border-color: rgba(239,68,68,0.25);
+      color: #fca5a5;
+    }
+    .auth-banner.info {
+      background: rgba(6,182,212,0.08);
+      border-color: rgba(6,182,212,0.25);
+      color: #67e8f9;
+    }
+
+    /* ─── Footer ──────────────────────────────────────────── */
+    .login-footer {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .login-footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .login-footer a:hover { text-decoration: underline; }
+
+    /* ─── Scopes preview ──────────────────────────────────── */
+    .scopes-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 20px;
+    }
+
+    .scope-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.20);
+      color: var(--emerald);
+    }
+
+    .scope-chip::before {
+      content: '🔒';
+      font-size: 0.65rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Decorative background -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+  <div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+  <div class="bg-orb bg-orb-3" aria-hidden="true"></div>
+
+  <!-- Login Card -->
+  <main class="login-card" role="main">
+    <!-- Brand -->
+    <div class="brand">
+      <div class="radar-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" class="radar-svg">
+          <defs>
+            <linearGradient id="sweepGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#06b6d4" stop-opacity="0"/>
+              <stop offset="100%" stop-color="#06b6d4" stop-opacity="1"/>
+            </linearGradient>
+          </defs>
+          <circle cx="24" cy="24" r="20" class="radar-ring r1"/>
+          <circle cx="24" cy="24" r="14" class="radar-ring r2"/>
+          <circle cx="24" cy="24" r="8"  class="radar-ring r3"/>
+          <circle cx="24" cy="24" r="3"  class="radar-center"/>
+          <g class="radar-sweep-group">
+            <line x1="24" y1="24" x2="44" y2="24" class="radar-sweep-line"/>
+            <circle cx="24" cy="24" r="20" class="radar-sweep-arc"/>
+          </g>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">WORK RADAR</span>
+        <span class="brand-tagline">Personal Work OS</span>
+      </div>
+    </div>
+
+    <!-- Heading -->
+    <h1 class="login-heading">Sign in to your radar</h1>
+    <p class="login-subheading">
+      Connect your accounts to let Work Radar automatically capture and prioritize your tasks from Gmail, GitHub, and Outlook.
+    </p>
+
+    <!-- Error / info banners (shown from query param) -->
+    <div id="auth-banner" class="auth-banner" role="alert" aria-live="polite"></div>
+
+    <!-- OAuth Provider Buttons -->
+    <div class="oauth-buttons" role="list">
+
+      <!-- Google -->
+      <a href="/api/v1/oauth/google/authorize" class="oauth-btn google" role="listitem" id="btn-google">
+        <span class="oauth-icon">
+          <!-- Google G logo SVG -->
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+        </span>
+        <span class="oauth-btn-text">Continue with Google</span>
+        <span class="oauth-btn-arrow">›</span>
+      </a>
+
+      <!-- GitHub -->
+      <a href="/api/v1/oauth/github/authorize" class="oauth-btn github" role="listitem" id="btn-github">
+        <span class="oauth-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.167 6.839 9.49.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .268.18.58.688.482A10.001 10.001 0 0022 12c0-5.523-4.477-10-10-10z"/>
+          </svg>
+        </span>
+        <span class="oauth-btn-text">Continue with GitHub</span>
+        <span class="oauth-btn-arrow">›</span>
+      </a>
+
+      <!-- Microsoft -->
+      <a href="/api/v1/oauth/microsoft/authorize" class="oauth-btn microsoft" role="listitem" id="btn-microsoft">
+        <span class="oauth-icon">
+          <svg viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1"  y="1"  width="10" height="10" fill="#f25022"/>
+            <rect x="12" y="1"  width="10" height="10" fill="#7fba00"/>
+            <rect x="1"  y="12" width="10" height="10" fill="#00a4ef"/>
+            <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
+          </svg>
+        </span>
+        <span class="oauth-btn-text">Continue with Microsoft</span>
+        <span class="oauth-btn-arrow">›</span>
+      </a>
+
+    </div>
+
+    <!-- What permissions are requested -->
+    <div class="divider">Read-only permissions</div>
+    <div class="scopes-row" aria-label="Permissions requested">
+      <span class="scope-chip">Gmail Read</span>
+      <span class="scope-chip">GitHub Repos</span>
+      <span class="scope-chip">Outlook Mail Read</span>
+      <span class="scope-chip">Profile Only</span>
+    </div>
+
+    <!-- Features -->
+    <div class="features" aria-label="Key features">
+      <div class="feature-item">
+        <span class="feature-dot"></span>
+        AI-powered task extraction from your inbox &amp; repos
+      </div>
+      <div class="feature-item">
+        <span class="feature-dot"></span>
+        Max-heap priority queue — always see what matters most
+      </div>
+      <div class="feature-item">
+        <span class="feature-dot"></span>
+        Tokens encrypted at rest with AES-256-GCM
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <p class="login-footer">
+      By signing in you agree to the read-only permission scopes listed above.<br>
+      Work Radar never reads or stores email content beyond task extraction.
+    </p>
+  </main>
+
+  <script>
+    // Show error banner from OAuth callback redirect
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const error  = params.get('error');
+      const banner = document.getElementById('auth-banner');
+      if (!error || !banner) return;
+
+      const messages = {
+        access_denied:          '⚠️  You cancelled the sign-in. Please try again.',
+        invalid_state:          '🔒 Security check failed. Please try signing in again.',
+        token_exchange_failed:  '❌ Could not complete sign-in. Check that OAuth credentials are configured correctly.',
+        profile_fetch_failed:   '❌ Could not retrieve your profile. Try a different provider.',
+        no_email:               '❌ No email address found on your account. Please use a different provider.',
+        server_error:           '❌ A server error occurred. Please try again in a moment.',
+        no_code:                '❌ No authorization code received. Please try again.'
+      };
+
+      banner.textContent = messages[error] || `⚠️  Sign-in error: ${error}`;
+      banner.className   = 'auth-banner error';
+      banner.style.display = 'block';
+    })();
+
+    // If already authenticated, go straight to dashboard
+    (async function () {
+      try {
+        const res = await fetch('/api/v1/auth/me', { credentials: 'same-origin' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user && data.user.id) {
+            window.location.replace('/');
+          }
+        }
+      } catch (_) { /* not logged in, stay on login page */ }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,517 @@
+================================================================================
+                    WORK RADAR — COMPREHENSIVE SETUP & DEPLOYMENT GUIDE
+================================================================================
+
+Work Radar is an AI-powered personal work management system that converts scattered
+inputs (Gmail, GitHub, Outlook, Teams, web selections, manual notes) into a single,
+continuously prioritized Max Heap Priority Queue with smart reminders & voice briefings.
+
+This document contains everything you need to run, configure, and deploy the system.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. System Architecture Overview
+2. Prerequisites
+3. 60-Second Quick Start (Zero-Database Local Dev)
+4. Environment Configuration (.env) & OAuth Credentials
+5. Setting Up OAuth Authentication (Google, GitHub, Microsoft)
+6. Running the Chrome Extension (Manifest V3)
+7. Connecting a Real PostgreSQL Database (Supabase / Neon / Local Postgres)
+8. Connecting AI Services (OpenAI / Google Gemini)
+9. Production Deployment Guide
+   9.1 Render / Railway / Fly.io / Heroku
+   9.2 VPS / Cloud VM / Ubuntu with PM2 & Nginx
+   9.3 Docker Deployment
+10. Verifying & Running Tests
+11. Troubleshooting & FAQ
+
+
+================================================================================
+1. SYSTEM ARCHITECTURE OVERVIEW
+================================================================================
+Work Radar consists of three primary components:
+
+1. Express & Node.js Backend (server/):
+   - TypeScript application running on Node.js (Port 3000 by default).
+   - OAuth 2.0 Multi-Provider Authentication:
+     * Native Google, GitHub, and Microsoft sign-in integrations.
+     * Automated user provisioning (UPSERT by email with avatar and provider metadata).
+     * Cryptographic state validation (HMAC-SHA256) preventing CSRF login attacks.
+     * httpOnly, secure, SameSite session cookies.
+   - Authoritative security pipeline: Session Authentication, Row-Level User Scoping,
+     CSRF protection, Helmet security headers, AES-256-GCM token encryption, Rate limiting.
+   - Dual-Mode Database Engine (server/db/database.ts):
+     * Mode A: Live PostgreSQL via connection pooling (pg).
+     * Mode B: In-Memory PostgreSQL-compatible mock with seed data that starts instantly
+       with zero database setup if DATABASE_URL is not set or unreachable.
+   - Bounded Priority Engine (0-125 points) and Max Heap Queue (O(1) peeking).
+   - Smart background reminder scheduler & quiet hours engine.
+   - Voice agent API (Web Speech & audio synthesis for daily briefings).
+
+2. Web Dashboard & Authentication (public/):
+   - Served directly by the backend at http://localhost:3000.
+   - Sign-In Portal (public/login.html): Glassmorphic dark OAuth interface with Google,
+     GitHub, and Microsoft one-click buttons, live radar animation, and error feedback.
+   - Auth Guard (public/js/auth.js): Verifies user session on load, automatically redirects
+     unauthenticated visitors in production, and renders the user profile chip and sign-out button.
+   - Main Dashboard (public/index.html): "DO THIS NOW" showcase card, live status ribbon,
+     priority tiers, task creation modal, integration connection modal, voice briefing.
+
+3. Chrome Extension (extension/):
+   - Manifest V3 extension with context menu capture, top task peek, and quick capture.
+
+
+================================================================================
+2. PREREQUISITES
+================================================================================
+Before starting, ensure you have:
+- Node.js (v18.x, v20.x, or v22.x LTS recommended)
+  Check version: node -v
+- npm (v9.x or higher)
+  Check version: npm -v
+- Google Chrome, Brave, Microsoft Edge, or any Chromium browser (for the Extension)
+- (Optional) PostgreSQL 14+ or a cloud PostgreSQL database (Supabase, Neon, etc.)
+- (Optional) OpenAI API Key or Google Gemini API Key
+
+
+================================================================================
+3. 60-SECOND QUICK START (ZERO-DATABASE LOCAL DEV)
+================================================================================
+You do NOT need to install or run PostgreSQL to try out Work Radar right now.
+
+Step 1: Open a terminal in the project directory:
+   cd "d:\C  --  DRIVE\Projects\Work Radar"
+
+Step 2: Ensure dependencies are installed:
+   npm install
+
+Step 3: Ensure your .env file is present (a default .env is already configured):
+   If .env is missing, copy .env.example:
+   copy .env.example .env     (Windows Command Prompt)
+   cp .env.example .env       (Linux / macOS / PowerShell)
+
+Step 4: Start the development server:
+   npm run dev
+
+   Or build and run production mode:
+   npm run build
+   npm start
+
+Step 5: Open your browser and visit:
+   http://localhost:3000
+
+You will immediately see the live Work Radar dashboard loaded with demo seed tasks,
+the Max Heap top priority task, and the interactive controls!
+
+
+================================================================================
+4. ENVIRONMENT CONFIGURATION (.env) & OAUTH CREDENTIALS
+================================================================================
+The project root contains `.env` and `.env.example`.
+Here is the meaning and recommended configuration for each variable:
+
+# ── Server Port & Environment ───────────────────────────────────────────────
+PORT=3000
+NODE_ENV=development                   # Set to "production" when deployed live!
+APP_URL=http://localhost:3000          # Public base URL (e.g. https://your-domain.onrender.com)
+
+# ── Security & Cryptography (CRITICAL for production) ───────────────────────
+SESSION_SECRET=work-radar-super-secret-session-key-32-chars-min!
+TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+# Note: TOKEN_ENCRYPTION_KEY must be a 64-character hex string (32 bytes) for AES-256-GCM.
+# Generate one in terminal with:
+# node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# ── Google OAuth 2.0 (Optional in dev, Recommended for Google Account Sign-In)
+# https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# ── GitHub OAuth (Optional in dev, Recommended for Developers)
+# https://github.com/settings/developers
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# ── Microsoft Entra ID (Optional in dev, For Outlook / Office 365)
+# https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+
+# ── PostgreSQL Database (Optional in dev, Recommended in prod) ──────────────
+DATABASE_URL=
+# Leave blank to use resilient in-memory storage.
+# Or provide PostgreSQL connection string:
+# DATABASE_URL=postgresql://postgres:yourpassword@localhost:5432/workradar
+
+# ── AI API Keys (Heuristic NLP fallback works if these are blank) ────────────
+OPENAI_API_KEY=
+GEMINI_API_KEY=
+
+# ── Quiet Hours Configuration (24-hour clock) ──────────────────────────────
+QUIET_HOURS_START=22                   # 10:00 PM
+QUIET_HOURS_END=8                      # 8:00 AM
+
+
+================================================================================
+5. SETTING UP OAUTH AUTHENTICATION (GOOGLE, GITHUB, MICROSOFT)
+================================================================================
+Work Radar features multi-provider OAuth authentication so you and your team can
+sign in directly with your existing Google, GitHub, or Microsoft accounts.
+
+--------------------------------------------------------------------------------
+5.1 HOW AUTHENTICATION BEHAVES
+--------------------------------------------------------------------------------
+- In Development Mode (NODE_ENV=development):
+  * Visiting http://localhost:3000 opens the dashboard immediately with an auto-
+    provisioned Demo User for frictionless local testing.
+  * You can test the real OAuth flow anytime by visiting http://localhost:3000/login.html.
+- In Production Mode (NODE_ENV=production):
+  * Every unauthenticated request to the dashboard or API is blocked and redirected
+    to the login page (http://localhost:3000/login.html or your deployed domain).
+  * Only users who sign in via Google, GitHub, or Microsoft receive an authenticated session.
+  * User profile info (email, name, avatar) is automatically synced into the database.
+
+--------------------------------------------------------------------------------
+5.2 GOOGLE OAUTH SETUP (Recommended)
+--------------------------------------------------------------------------------
+Allows users to sign in with their Google / Gmail account.
+
+1. Go to Google Cloud Console:
+   https://console.cloud.google.com/
+2. Create a new project (or select an existing one), e.g., "Work Radar".
+3. Configure the OAuth Consent Screen:
+   - Navigate to: "APIs & Services" -> "OAuth consent screen".
+   - Select User Type: "External" (or "Internal" if using Google Workspace).
+   - App Name: "Work Radar"
+   - User support email: your email.
+   - Developer contact email: your email.
+   - Under "Scopes", add: `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`.
+   - Under "Test users" (if in Testing status), add your personal Gmail address.
+4. Create OAuth Credentials:
+   - Go to: "APIs & Services" -> "Credentials" -> click "+ CREATE CREDENTIALS" -> "OAuth client ID".
+   - Application type: "Web application".
+   - Name: "Work Radar Web Client".
+   - Authorized JavaScript origins:
+     * For local dev: http://localhost:3000
+     * For production: https://your-radar-app.onrender.com
+   - Authorized redirect URIs (CRITICAL - must match exactly!):
+     * For local dev: http://localhost:3000/api/v1/oauth/google/callback
+     * For production: https://your-radar-app.onrender.com/api/v1/oauth/google/callback
+5. Copy your Client ID and Client Secret into your `.env`:
+   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=GOCSPX-your-secret
+
+--------------------------------------------------------------------------------
+5.3 GITHUB OAUTH SETUP
+--------------------------------------------------------------------------------
+Allows users to sign in with their GitHub account.
+
+1. Go to GitHub Developer Settings:
+   https://github.com/settings/developers
+2. Click "OAuth Apps" -> "New OAuth App".
+3. Fill in:
+   - Application name: Work Radar
+   - Homepage URL: http://localhost:3000 (or your production URL)
+   - Authorization callback URL:
+     * For local dev: http://localhost:3000/api/v1/oauth/github/callback
+     * For production: https://your-radar-app.onrender.com/api/v1/oauth/github/callback
+4. Click "Register application".
+5. Copy the "Client ID", then click "Generate a new client secret" and copy it:
+   GITHUB_CLIENT_ID=your-github-client-id
+   GITHUB_CLIENT_SECRET=your-github-client-secret
+
+--------------------------------------------------------------------------------
+5.4 MICROSOFT ENTRA ID SETUP (Outlook / Microsoft 365)
+--------------------------------------------------------------------------------
+Allows users to sign in with their Microsoft or Outlook account.
+
+1. Go to Azure Portal App Registrations:
+   https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade
+2. Click "New registration":
+   - Name: Work Radar
+   - Supported account types: "Accounts in any organizational directory and personal Microsoft accounts"
+   - Redirect URI: Select "Web" and enter:
+     * For local dev: http://localhost:3000/api/v1/oauth/microsoft/callback
+     * For production: https://your-radar-app.onrender.com/api/v1/oauth/microsoft/callback
+3. Click "Register".
+4. Copy the "Application (client) ID":
+   MICROSOFT_CLIENT_ID=your-application-client-id
+5. Go to "Certificates & secrets" -> click "+ New client secret" -> Add:
+   Copy the "Value" (not Secret ID):
+   MICROSOFT_CLIENT_SECRET=your-secret-value
+
+--------------------------------------------------------------------------------
+5.5 SIGNING OUT & TESTING
+--------------------------------------------------------------------------------
+- Visit http://localhost:3000/login.html to view the sign-in page.
+- Click any provider button to initiate authentication.
+- Upon successful login, you will be redirected to the dashboard with your avatar,
+  name, and a "Sign Out" option in the top right user menu.
+
+
+================================================================================
+6. RUNNING THE CHROME EXTENSION (MANIFEST V3)
+================================================================================
+The Chrome Extension allows capturing tasks from any webpage via context menu
+(right click) or clicking the Work Radar toolbar icon.
+
+To install the extension:
+1. Open Google Chrome (or Brave / Edge / Chromium).
+2. In the URL address bar, navigate to:
+   chrome://extensions/
+3. In the top-right corner, toggle ON "Developer mode".
+4. In the top-left corner, click "Load unpacked".
+5. Browse to and select the `extension` folder inside this project:
+   d:\C  --  DRIVE\Projects\Work Radar\extension
+6. The extension "Work Radar — Work Capture & Priority Queue" will now appear!
+
+How to test the extension:
+- Click the Work Radar puzzle/pin icon in Chrome toolbar:
+  You will see the current top task ("DO THIS NOW") and a Quick Capture text box.
+- Highlight any text on any webpage -> Right Click -> "Add to Work Radar".
+  The selected text will be sent to your running backend at http://localhost:3000/api/v1/capture
+  and automatically prioritized into the queue!
+
+Note for Production Deployment:
+When you deploy your backend to a public domain (e.g. https://my-radar.onrender.com):
+- Open `extension/popup.js` and change `API_BASE_URL` to `https://my-radar.onrender.com/api/v1`.
+- Open `extension/background.js` and change `API_BASE_URL` to `https://my-radar.onrender.com/api/v1`.
+- Open `extension/manifest.json` and add `https://my-radar.onrender.com/*` to `host_permissions`.
+
+
+================================================================================
+7. CONNECTING A REAL POSTGRESQL DATABASE
+================================================================================
+If you want data persistence across server restarts using a real database:
+
+Option A: Supabase (Free & Instant Cloud PostgreSQL)
+1. Go to https://supabase.com and create a free project.
+2. In Supabase Dashboard, go to "Project Settings" -> "Database".
+3. Copy the "URI" (Connection String), for example:
+   postgresql://postgres:[YOUR-PASSWORD]@db.xxxx.supabase.co:5432/postgres
+4. Open the Supabase "SQL Editor" tab, paste the contents of `server/db/schema.sql`,
+   and click "Run".
+5. In your `.env` file, set:
+   DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.xxxx.supabase.co:5432/postgres
+
+Option B: Neon Serverless Postgres
+1. Go to https://neon.tech and create a project.
+2. Copy the connection string.
+3. Run the SQL script from `server/db/schema.sql` in Neon's SQL Editor.
+4. Set `DATABASE_URL` in your `.env`.
+
+Option C: Local PostgreSQL on your PC
+1. Install PostgreSQL from https://www.postgresql.org/download/
+2. Create database:
+   psql -U postgres -c "CREATE DATABASE workradar;"
+3. Run schema:
+   psql -U postgres -d workradar -f "server/db/schema.sql"
+4. Update `.env`:
+   DATABASE_URL=postgresql://postgres:password@localhost:5432/workradar
+
+
+================================================================================
+8. CONNECTING AI SERVICES (OPENAI / GEMINI)
+================================================================================
+Work Radar includes built-in rule-based heuristic NLP that parses deadlines, priorities,
+action verbs, and deduplication without any external API keys.
+
+To enable deep LLM reasoning:
+- For OpenAI:
+  1. Obtain an API key from https://platform.openai.com/api-keys
+  2. Set `OPENAI_API_KEY=sk-...` in `.env`.
+- For Google Gemini:
+  1. Obtain an API key from https://aistudio.google.com/app/apikey
+  2. Set `GEMINI_API_KEY=AIzaSy...` in `.env`.
+
+
+================================================================================
+9. PRODUCTION DEPLOYMENT GUIDE
+================================================================================
+
+--------------------------------------------------------------------------------
+9.1 DEPLOYING TO RENDER (Recommended, Free / Low Cost)
+--------------------------------------------------------------------------------
+Render can host the Node.js backend and PostgreSQL database together.
+
+1. Push your repository to GitHub or GitLab.
+2. Create a PostgreSQL Database on Render:
+   - Go to https://dashboard.render.com -> "New +" -> "PostgreSQL".
+   - Name it `work-radar-db`.
+   - Once provisioned, copy the "Internal Database URL" (or External URL).
+   - In Render Database "Connect" -> open psql and run `server/db/schema.sql`.
+3. Create a Web Service on Render:
+   - Click "New +" -> "Web Service" -> Connect your repository.
+   - Environment: Node
+   - Build Command: npm install && npm run build
+   - Start Command: npm start
+4. Add Environment Variables in Render Web Service Settings:
+   - NODE_ENV = production
+   - PORT = 3000 (or leave default, Render sets PORT automatically)
+   - APP_URL = https://your-service-name.onrender.com
+   - SESSION_SECRET = (generate a 32+ character random string)
+   - TOKEN_ENCRYPTION_KEY = (generate 64-char hex string)
+   - DATABASE_URL = (paste your Render PostgreSQL connection string)
+   - GOOGLE_CLIENT_ID = (from Google Cloud Console)
+   - GOOGLE_CLIENT_SECRET = (from Google Cloud Console)
+   - GITHUB_CLIENT_ID = (optional, from GitHub Developer Settings)
+   - GITHUB_CLIENT_SECRET = (optional, from GitHub Developer Settings)
+5. In your Google / GitHub developer console, add your production callback URL:
+   https://your-service-name.onrender.com/api/v1/oauth/google/callback
+6. Deploy! Once deployed, visit your Render URL to see the app live.
+
+--------------------------------------------------------------------------------
+9.2 DEPLOYING TO RAILWAY
+--------------------------------------------------------------------------------
+1. Go to https://railway.app -> "New Project".
+2. Add a "PostgreSQL" plugin.
+3. Add a "GitHub Repo" service pointing to this project.
+4. Railway will automatically detect Node.js.
+5. Set Build Command: `npm install && npm run build`
+6. Set Start Command: `npm start`
+7. In the Variables tab, reference the PostgreSQL database and add keys:
+   DATABASE_URL = ${{Postgres.DATABASE_URL}}
+   NODE_ENV = production
+   APP_URL = https://${{RAILWAY_PUBLIC_DOMAIN}}
+   SESSION_SECRET = (your-secret)
+   TOKEN_ENCRYPTION_KEY = (your-hex-key)
+   GOOGLE_CLIENT_ID = (your-google-client-id)
+   GOOGLE_CLIENT_SECRET = (your-google-client-secret)
+8. In Postgres service -> Query editor -> Run `server/db/schema.sql`.
+9. Add the callback URL `https://<railway-domain>/api/v1/oauth/google/callback`
+   to your Google Cloud Console.
+
+--------------------------------------------------------------------------------
+9.3 DEPLOYING TO A VPS (Ubuntu / Debian / DigitalOcean Droplet / AWS EC2)
+--------------------------------------------------------------------------------
+1. Connect to your server via SSH:
+   ssh user@your-server-ip
+
+2. Install Node.js & PM2:
+   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+   sudo npm install -g pm2
+
+3. Clone and build the application:
+   git clone <your-repo-url> /var/www/work-radar
+   cd /var/www/work-radar
+   npm install
+   cp .env.example .env
+   nano .env    # configure your production values (APP_URL, OAuth keys, DB)
+   npm run build
+
+4. Start with PM2 process manager:
+   pm2 start dist/server/server.js --name "work-radar"
+   pm2 save
+   pm2 startup
+
+5. Set up Nginx reverse proxy (optional for SSL / domain):
+   server {
+       server_name radar.yourdomain.com;
+
+       location / {
+           proxy_pass http://localhost:3000;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+       }
+   }
+   Use Certbot for free HTTPS:
+   sudo certbot --nginx -d radar.yourdomain.com
+
+--------------------------------------------------------------------------------
+9.4 DOCKER DEPLOYMENT
+--------------------------------------------------------------------------------
+If you prefer running with Docker:
+
+Create a `Dockerfile` in the root:
+--------------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json tsconfig.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/public ./public
+EXPOSE 3000
+CMD ["node", "dist/server/server.js"]
+--------------------------------------------------------------------------------
+
+Build and run:
+   docker build -t work-radar .
+   docker run -p 3000:3000 --env-file .env work-radar
+
+
+================================================================================
+10. VERIFYING & RUNNING TESTS
+================================================================================
+The project includes automated test suites for:
+- Max Heap Task Priority Queue
+- Bounded Priority Scoring Engine (0-125)
+- Duplicate Detector & text normalization
+- AES-256-GCM Token Encryption & Auth Tag verification
+
+Run tests anytime with:
+   npm test
+
+All tests should pass with code 0.
+
+
+================================================================================
+11. TROUBLESHOOTING & FAQ
+================================================================================
+
+Q1: "Failed to load top task" or "Dashboard unreachable" in Chrome Extension?
+A1: Ensure the backend server is running (`npm run dev` or `npm start`).
+    Verify that http://localhost:3000 is accessible in your browser.
+
+Q2: How do I change the port?
+A2: Edit `PORT=...` in `.env` (e.g. `PORT=8080`).
+
+Q3: Can I run this without PostgreSQL installed on my machine?
+A3: YES! The backend includes a built-in PostgreSQL-compatible in-memory engine.
+    If `DATABASE_URL` is empty, it starts immediately and loads pre-populated seed tasks.
+
+Q4: How do I reset or clear the in-memory tasks?
+A4: Simply restart the server (`Ctrl+C` then `npm run dev`).
+
+Q5: "CORS blocked origin" error in console?
+A5: The backend allows requests from `localhost`, your configured `APP_URL`, and
+    any `chrome-extension://` origin. If running on a custom domain, ensure `APP_URL`
+    in `.env` matches your domain.
+
+Q6: Voice Assistant not speaking or listening?
+A6: The Web Speech API requires browser permissions. When clicking the Microphone
+    button in the dashboard, allow microphone access in your browser prompt.
+    Ensure you are using a modern Chromium or Safari browser.
+
+Q7: Google OAuth says "Error 400: redirect_uri_mismatch"?
+A7: The redirect URI configured in Google Cloud Console must match your running URL
+    EXACTLY, including protocol, port, and trailing path:
+    - For local testing: http://localhost:3000/api/v1/oauth/google/callback
+    - For production:    https://your-domain.com/api/v1/oauth/google/callback
+    Make sure there is no trailing slash and that `http` vs `https` is correct.
+
+Q8: Google OAuth says "Google hasn't verified this app"?
+A8: In your Google Cloud OAuth Consent Screen, while your Publishing Status is
+    "Testing", click "Add users" under "Test users" and add your own Gmail address.
+    When logging in, click "Advanced" -> "Go to Work Radar (unsafe)".
+
+Q9: Can I test the dashboard without setting up OAuth keys?
+A9: YES! In development mode (`NODE_ENV=development`), the dashboard loads immediately
+    with a demo user. OAuth is only required if you want real Google/GitHub login or
+    when deploying in production mode (`NODE_ENV=production`).
+
+================================================================================
+Happy working with Work Radar!
+================================================================================

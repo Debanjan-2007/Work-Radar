@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+  <title>Work Radar Extension</title>
+</head>
+<body>
+  <div class="ext-container">
+    <div class="ext-header">
+      <div class="brand">
+        <span class="icon">📡</span>
+        <span class="name">WORK RADAR</span>
+      </div>
+      <div class="header-actions">
+        <button id="btn-toggle-settings" class="link-btn" title="Configure Server URL">⚙️</button>
+        <button id="btn-open-dashboard" class="link-btn" title="Open Full Dashboard">↗ Dashboard</button>
+      </div>
+    </div>
+
+    <!-- Server URL Settings Drawer -->
+    <div id="settings-drawer" class="settings-drawer hidden">
+      <label for="server-url-input">Backend Server URL:</label>
+      <div class="settings-row">
+        <input type="url" id="server-url-input" placeholder="http://localhost:3000">
+        <button type="button" id="btn-save-settings" class="btn-save">Save</button>
+      </div>
+      <div id="settings-saved-msg" class="settings-saved hidden">Saved!</div>
+    </div>
+
+    <!-- "DO THIS NOW" Peek -->
+    <div class="top-task-box">
+      <div class="label">DO THIS NOW</div>
+      <div id="top-task-title" class="task-title">Loading top obligation...</div>
+      <div class="task-meta">
+        <span id="top-task-source" class="badge">--</span>
+        <span id="top-task-score" class="score">Score: --</span>
+      </div>
+    </div>
+
+    <!-- Quick Web Capture Form -->
+    <form id="ext-capture-form" class="capture-box">
+      <label for="ext-content">Capture Work on Current Page</label>
+      <textarea id="ext-content" rows="3" placeholder="Selected text or action notes..."></textarea>
+      <button type="submit" id="btn-ext-capture" class="btn-capture">Add to Priority Queue</button>
+    </form>
+
+    <div id="status-msg" class="status-msg hidden"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
