@@ -5,6 +5,32 @@ import { encryptToken, decryptToken } from '../../security/tokenEncryption.js';
 import { DEMO_USER } from '../../middleware/auth.js';
 import { db } from '../../db/database.js';
 
+function decodeBase64Url(data: string): string {
+  const padded = data.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((data.length + 3) % 4);
+  return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function extractGmailBody(payload: any): string {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+  if (Array.isArray(payload.parts)) {
+    const plain = payload.parts.find((p: any) => p.mimeType === 'text/plain' && p.body?.data);
+    if (plain?.body?.data) return decodeBase64Url(plain.body.data);
+    const html = payload.parts.find((p: any) => p.mimeType === 'text/html' && p.body?.data);
+    if (html?.body?.data) {
+      return decodeBase64Url(html.body.data).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    for (const part of payload.parts) {
+      const nested = extractGmailBody(part);
+      if (nested) return nested;
+    }
+  }
+  if (payload.body?.data) return decodeBase64Url(payload.body.data);
+  return '';
+}
+
 export class GmailAdapter implements IIntegrationAdapter {
   public readonly provider = 'gmail';
 
@@ -15,7 +41,7 @@ export class GmailAdapter implements IIntegrationAdapter {
       user_id: userId,
       provider: this.provider,
       access_token: encryptToken(accessToken),
-      refresh_token: encryptToken(refreshToken),
+      refresh_token: refreshToken ? encryptToken(refreshToken) : undefined,
       scopes,
       status: 'CONNECTED',
       last_sync_at: new Date().toISOString()
@@ -25,55 +51,71 @@ export class GmailAdapter implements IIntegrationAdapter {
   }
 
   async fetchMessages(userId: string, since?: Date): Promise<NormalizedMessage[]> {
-    // 1. Check if user has real connected Gmail credentials
     try {
       const integrations = await db.getIntegrations(userId);
       const gmailIntegration = integrations.find(i => i.provider === this.provider && i.status === 'CONNECTED');
 
       if (gmailIntegration && gmailIntegration.access_token) {
-        const accessToken = decryptToken(gmailIntegration.access_token);
+        let accessToken = decryptToken(gmailIntegration.access_token);
+        const newerThan = since
+          ? `after:${Math.floor(since.getTime() / 1000)}`
+          : 'newer_than:30d';
+        const query = `in:inbox -category:promotions -category:social ${newerThan}`;
 
-        // Fetch recent messages from Gmail inbox
-        const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=is:inbox', {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
+        const fetchList = async (token: string) =>
+          fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=25&q=${encodeURIComponent(query)}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
 
-        if (listRes.ok) {
+        let listRes = await fetchList(accessToken);
+        if (listRes.status === 401) {
+          try {
+            accessToken = await this.refreshToken(userId);
+            listRes = await fetchList(accessToken);
+          } catch (refreshErr) {
+            console.warn('[GmailAdapter] Token refresh failed:', refreshErr);
+          }
+        }
+
+        if (!listRes.ok) {
+          const errText = await listRes.text().catch(() => '');
+          console.warn(`[GmailAdapter] List messages failed: ${listRes.status} ${errText.slice(0, 300)}`);
+        } else {
           const listData = (await listRes.json()) as any;
-          if (listData.messages && Array.isArray(listData.messages)) {
-            const fetched = await Promise.all(
-              listData.messages.slice(0, 5).map(async (m: { id: string }) => {
-                try {
-                  const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, {
-                    headers: { Authorization: `Bearer ${accessToken}` }
-                  });
-                  if (!msgRes.ok) return null;
-                  const msgData = (await msgRes.json()) as any;
+          const ids: { id: string }[] = Array.isArray(listData.messages) ? listData.messages : [];
+          const fetched = await Promise.all(
+            ids.slice(0, 25).map(async (m) => {
+              try {
+                const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, {
+                  headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                if (!msgRes.ok) return null;
+                const msgData = (await msgRes.json()) as any;
 
-                  const headers = msgData.payload?.headers || [];
-                  const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || '(No Subject)';
-                  const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
-                  const date = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || new Date().toISOString();
-                  const snippet = msgData.snippet || '';
+                const headers = msgData.payload?.headers || [];
+                const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || '(No Subject)';
+                const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
+                const date = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || new Date().toISOString();
+                const body = extractGmailBody(msgData.payload) || msgData.snippet || '';
 
-                  return {
-                    id: msgData.id,
-                    threadId: msgData.threadId,
-                    from,
-                    subject,
-                    body: snippet,
-                    date
-                  };
-                } catch {
-                  return null;
-                }
-              })
-            );
+                return {
+                  id: msgData.id,
+                  threadId: msgData.threadId,
+                  from,
+                  subject,
+                  body,
+                  snippet: msgData.snippet,
+                  date
+                };
+              } catch {
+                return null;
+              }
+            })
+          );
 
-            const validMessages = fetched.filter(Boolean) as any[];
-            if (validMessages.length > 0) {
-              return validMessages.map(m => GmailMapper.mapToNormalized(m));
-            }
+          const validMessages = fetched.filter(Boolean) as any[];
+          if (validMessages.length > 0) {
+            return validMessages.map(m => GmailMapper.mapToNormalized(m));
           }
         }
       }
@@ -81,31 +123,7 @@ export class GmailAdapter implements IIntegrationAdapter {
       console.warn('[GmailAdapter] Real Gmail fetch failed or offline:', err);
     }
 
-    // 2. Demo fallback only for the Demo User account
-    if (userId === DEMO_USER.id) {
-      const mockMessages = [
-        {
-          id: `gmail-msg-${Date.now()}`,
-          threadId: 'thread-8841',
-          from: 'sarah.connor@clientcorp.com',
-          subject: 'URGENT: Submit Final Milestone Deliverable',
-          body: 'Hi Alex, please review the final milestone report and submit it before 6 PM today so our VP can sign off.',
-          date: new Date().toISOString()
-        },
-        {
-          id: `gmail-msg-${Date.now() + 1}`,
-          threadId: 'thread-8842',
-          from: 'marcus.v@acme.org',
-          subject: 'Action Required: Schedule Q4 Security Architecture Review',
-          body: 'Please coordinate with the devops team to schedule the architecture review before Friday.',
-          date: new Date().toISOString()
-        }
-      ];
-
-      return mockMessages.map(m => GmailMapper.mapToNormalized(m));
-    }
-
-    // 3. For real users with no emails or unlinked Gmail, return empty array
+    // No Gmail integration connected, return empty array
     return [];
   }
 

@@ -61,9 +61,51 @@ export function verifySessionToken(token: string): AuthenticatedUser | null {
   }
 }
 
+export function isSecureRequest(req?: Request): boolean {
+  if (config.nodeEnv === 'production') return true;
+  if (!req) return false;
+  const forwarded = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  return forwarded === 'https' || !!req.secure;
+}
+
+/** Public origin used for OAuth redirect_uri — derived from the incoming request so Render/Railway work without a perfect APP_URL. */
+export function getPublicAppUrl(req: Request): string {
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const host = forwardedHost || req.get('host') || '';
+  const isLocal = !host || host.includes('localhost') || host.startsWith('127.0.0.1');
+  if (!isLocal) {
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const proto = forwardedProto || (req.secure ? 'https' : 'https');
+    return `${proto}://${host}`;
+  }
+  return config.appUrl;
+}
+
+export function sessionCookieOptions(req?: Request, httpOnly = true) {
+  return {
+    httpOnly,
+    secure: isSecureRequest(req),
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  };
+}
+
+export function clearSessionCookies(res: Response): void {
+  const variants: Array<{ path: string; sameSite: 'lax' | 'strict'; secure: boolean }> = [
+    { path: '/', sameSite: 'lax', secure: true },
+    { path: '/', sameSite: 'lax', secure: false },
+    { path: '/', sameSite: 'strict', secure: true },
+    { path: '/', sameSite: 'strict', secure: false }
+  ];
+  for (const opts of variants) {
+    res.clearCookie('work_radar_session', { ...opts, httpOnly: true });
+    res.clearCookie('csrf_token', { ...opts, httpOnly: false });
+  }
+}
+
 /**
  * Authentication middleware ensuring request is securely bound to a verified user.
- * In development: auto-provisions the demo user for frictionless testing.
  * In production: returns 401 Unauthorized — the frontend auth.js guard redirects to /login.html.
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -80,12 +122,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       req.user = verifiedUser;
       return next();
     }
-  }
-
-  // In development mode, auto-provision default demo user for frictionless testing
-  if (config.nodeEnv === 'development') {
-    req.user = DEMO_USER;
-    return next();
   }
 
   return res.status(401).json({

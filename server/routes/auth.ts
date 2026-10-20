@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createSessionToken, verifySessionToken, DEMO_USER } from '../middleware/auth.js';
+import { createSessionToken, verifySessionToken, DEMO_USER, sessionCookieOptions, clearSessionCookies } from '../middleware/auth.js';
 import { AuditLogger } from '../security/auditLogger.js';
 import { config } from '../config.js';
 import crypto from 'crypto';
@@ -7,42 +7,16 @@ import crypto from 'crypto';
 const router = Router();
 
 router.post('/login', (req, res) => {
-  // In development/demo mode, authenticates demo user
-  const user = req.body.email ? { ...DEMO_USER, email: req.body.email } : DEMO_USER;
-  const token = createSessionToken(user);
-  const csrfToken = crypto.randomBytes(24).toString('hex');
-
-  res.cookie('work_radar_session', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  });
-
-  res.cookie('csrf_token', csrfToken, {
-    httpOnly: false, // accessible to client for X-CSRF-Token header
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict'
-  });
-
-  AuditLogger.log({
-    eventType: 'AUTH_LOGIN',
-    userId: user.id,
-    ipAddress: req.ip,
-    details: { email: user.email }
-  });
-
-  res.json({
-    user,
-    token,
-    csrfToken
+  return res.status(403).json({
+    error: 'Forbidden',
+    message: 'Passwordless demo login is disabled. Sign in with Google, GitHub, or Microsoft.'
   });
 });
 
+// Logout endpoint - exempt from CSRF check (session is being destroyed)
 router.post('/logout', (req, res) => {
   const userId = req.user?.id;
-  res.clearCookie('work_radar_session');
-  res.clearCookie('csrf_token');
+  clearSessionCookies(res);
 
   if (userId) {
     AuditLogger.log({
@@ -68,34 +42,11 @@ router.get('/me', (req, res) => {
   return res.status(401).json({ error: 'Unauthorized', message: 'No active session' });
 });
 
-// Explicit demo login for users who want to try the demo data
 router.post('/demo', (req, res) => {
-  const sessionToken = createSessionToken(DEMO_USER);
-  const isProd = config.nodeEnv === 'production';
-
-  res.cookie('work_radar_session', sessionToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000
+  return res.status(403).json({
+    error: 'Forbidden',
+    message: 'Demo login is disabled. Sign in with Google, GitHub, or Microsoft.'
   });
-
-  const csrfToken = crypto.randomBytes(32).toString('hex');
-  res.cookie('csrf_token', csrfToken, {
-    httpOnly: false,
-    secure: isProd,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  });
-
-  AuditLogger.log({
-    eventType: 'AUTH_LOGIN',
-    userId: DEMO_USER.id,
-    ipAddress: req.ip,
-    details: { provider: 'demo' }
-  });
-
-  res.json({ success: true, user: DEMO_USER });
 });
 
 export default router;

@@ -6,6 +6,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
     return next();
   }
 
+  // Exempt logout endpoints from CSRF (session is being destroyed)
+  if (req.path.includes('/logout')) {
+    return next();
+  }
+
   // Requests from Chrome extension with custom extension header or Authorization header
   const isExtensionRequest = req.headers['x-work-radar-client'] === 'chrome-extension';
   const hasAuthHeader = !!req.headers['authorization'];

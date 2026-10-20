@@ -464,13 +464,6 @@
         <span class="oauth-btn-arrow">›</span>
       </a>
 
-      <!-- Demo Account Option -->
-      <button type="button" class="oauth-btn demo" id="btn-demo" style="background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.12); margin-top: 6px; cursor: pointer;">
-        <span class="oauth-icon" style="font-size: 1.1rem; display: flex; align-items: center; justify-content: center;">⚡</span>
-        <span class="oauth-btn-text" style="color: #94a3b8;">Explore with Demo Account</span>
-        <span class="oauth-btn-arrow" style="color: #64748b;">›</span>
-      </button>
-
     </div>
 
     <!-- What permissions are requested -->
@@ -514,13 +507,14 @@
       if (!error || !banner) return;
 
       const messages = {
-        access_denied:          '⚠️  You cancelled the sign-in. Please try again.',
+        access_denied:          '⚠️  Sign-in was denied. If this is not a listed test user, publish the OAuth app (or add the email as a test user). You do not need Vercel — Render is fine.',
         invalid_state:          '🔒 Security check failed. Please try signing in again.',
-        token_exchange_failed:  '❌ Could not complete sign-in. Check that OAuth credentials are configured correctly.',
+        token_exchange_failed:  '❌ Could not complete sign-in. Set APP_URL to your Render URL and add the matching callback URLs in Google / GitHub / Microsoft.',
         profile_fetch_failed:   '❌ Could not retrieve your profile. Try a different provider.',
         no_email:               '❌ No email address found on your account. Please use a different provider.',
         server_error:           '❌ A server error occurred. Please try again in a moment.',
-        no_code:                '❌ No authorization code received. Please try again.'
+        no_code:                '❌ No authorization code received. Please try again.',
+        oauth_not_configured:   '❌ This provider is not configured on the server. Add the client ID and secret in Render environment variables.'
       };
 
       banner.textContent = messages[error] || `⚠️  Sign-in error: ${error}`;
@@ -540,23 +534,6 @@
         }
       } catch (_) { /* not logged in, stay on login page */ }
     })();
-
-    // Handle Explore with Demo Account button
-    document.getElementById('btn-demo')?.addEventListener('click', async () => {
-      try {
-        const btn = document.getElementById('btn-demo');
-        if (btn) btn.style.opacity = '0.6';
-        const res = await fetch('/api/v1/auth/demo', {
-          method: 'POST',
-          credentials: 'same-origin'
-        });
-        if (res.ok) {
-          window.location.replace('/');
-        }
-      } catch (err) {
-        console.error('Demo login error:', err);
-      }
-    });
   </script>
 </body>
 </html>
